@@ -5,6 +5,12 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 20;
 
+canvas.width = COLS * BLOCK;
+canvas.height = ROWS * BLOCK;
+
+ctx.scale(BLOCK, BLOCK);
+
+
 ctx.scale(BLOCK, BLOCK);
 
 const COLORS = [
