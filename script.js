@@ -166,14 +166,29 @@ function update(time = 0) {
 }
 
 document.addEventListener("keydown", event => {
-    if (event.key === "ArrowLeft") player.pos.x--;
-    if (event.key === "ArrowRight") player.pos.x++;
-    if (event.key === "ArrowDown") playerDrop();
-    if (event.key === "ArrowUp") playerRotate();
-    if (collide(arena, player)) {
-        player.pos.x += event.key === "ArrowLeft" ? 1 : -1;
+    if (event.key === "ArrowLeft") {
+        player.pos.x--;
+        if (collide(arena, player)) {
+            player.pos.x++;
+        }
+    }
+
+    if (event.key === "ArrowRight") {
+        player.pos.x++;
+        if (collide(arena, player)) {
+            player.pos.x--;
+        }
+    }
+
+    if (event.key === "ArrowDown") {
+        playerDrop();
+    }
+
+    if (event.key === "ArrowUp") {
+        playerRotate();
     }
 });
+
 
 resetPlayer();
 update();
