@@ -8,10 +8,11 @@ const BLOCK = 20;
 canvas.width = COLS * BLOCK;
 canvas.height = ROWS * BLOCK;
 
-ctx.scale(BLOCK, BLOCK);
+
+//ctx.scale(BLOCK, BLOCK);
 
 
-ctx.scale(BLOCK, BLOCK);
+//ctx.scale(BLOCK, BLOCK);
 
 const COLORS = [
     null,
@@ -141,7 +142,13 @@ function drawMatrix(matrix, offset) {
         row.forEach((value, x) => {
             if (value !== 0) {
                 ctx.fillStyle = COLORS[value];
-                ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
+                ctx.fillRect(
+    (x + offset.x) * BLOCK,
+    (y + offset.y) * BLOCK,
+    BLOCK,
+    BLOCK
+);
+
             }
         });
     });
@@ -150,6 +157,7 @@ function drawMatrix(matrix, offset) {
 function draw() {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
 
     drawMatrix(arena, {x: 0, y: 0});
     drawMatrix(player.matrix, player.pos);
