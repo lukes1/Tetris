@@ -2,13 +2,27 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Tetris</h1>
-    <canvas id="game"></canvas>
-    <p>Steuerung: ← → ↓ | Drehen: ↑</p>
+    <main class="game-shell">
+        <header class="game-header">
+            <h1>Tetris</h1>
+            <p>Klassischer Arcade-Look, moderne Oberflaeche.</p>
+        </header>
+
+        <section class="game-stage">
+            <canvas id="game"></canvas>
+        </section>
+
+        <footer class="controls">
+            <span>Bewegen: &larr; &rarr;</span>
+            <span>Fallen: &darr;</span>
+            <span>Drehen: &uarr;</span>
+        </footer>
+    </main>
     <script src="script.js"></script>
 </body>
 </html>
