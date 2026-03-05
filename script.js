@@ -43,6 +43,10 @@ function cloneMatrix(matrix) {
     return matrix.map(row => row.slice());
 }
 
+function randomShapeMatrix() {
+    return cloneMatrix(SHAPES[Math.floor(Math.random() * (SHAPES.length - 1)) + 1]);
+}
+
 function rotateClockwise(matrix) {
     return matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
 }
@@ -91,6 +95,7 @@ const player = {
     matrix: null
 };
 
+let nextMatrix = null;
 let autoPlay = AUTO_PLAY_DEFAULT;
 let lastTime = 0;
 let dropCounter = 0;
@@ -248,9 +253,12 @@ function lockPiece() {
 }
 
 function resetPlayer() {
-    player.matrix = cloneMatrix(
-        SHAPES[Math.floor(Math.random() * (SHAPES.length - 1)) + 1]
-    );
+    if (!nextMatrix) {
+        nextMatrix = randomShapeMatrix();
+    }
+
+    player.matrix = nextMatrix;
+    nextMatrix = randomShapeMatrix();
     player.pos.y = 0;
     player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
 
@@ -299,16 +307,16 @@ function evaluateBoard(board, clearedLines) {
     const aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
 
     return (
-        clearedLines * 3.8 -
-        aggregateHeight * 0.45 -
-        holes * 0.95 -
-        bumpiness * 0.32
+        clearedLines * 7.5 -
+        aggregateHeight * 0.42 -
+        holes * 1.15 -
+        bumpiness * 0.26
     );
 }
 
-function findBestMove(board, matrix) {
+function getCandidatePlacements(board, matrix) {
     const rotations = getUniqueRotations(matrix);
-    let best = null;
+    const candidates = [];
 
     for (const rotated of rotations) {
         const bounds = getOccupiedXBounds(rotated);
@@ -324,16 +332,50 @@ function findBestMove(board, matrix) {
             const simulated = board.map(row => row.slice());
             placeMatrix(simulated, rotated, x, y);
             const cleared = sweepBoard(simulated);
-            const score = evaluateBoard(simulated, cleared);
+            const scoreValue = evaluateBoard(simulated, cleared);
 
-            if (!best || score > best.score) {
-                best = {
-                    score,
-                    x,
-                    y,
-                    matrix: cloneMatrix(rotated)
-                };
+            candidates.push({
+                score: scoreValue,
+                x,
+                y,
+                cleared,
+                matrix: cloneMatrix(rotated),
+                boardAfter: simulated
+            });
+        }
+    }
+
+    return candidates;
+}
+
+function findBestMove(board, matrix, upcomingMatrix) {
+    const firstMoves = getCandidatePlacements(board, matrix);
+    let best = null;
+
+    for (const move of firstMoves) {
+        let lookaheadScore = move.score;
+
+        if (upcomingMatrix) {
+            const nextMoves = getCandidatePlacements(move.boardAfter, upcomingMatrix);
+
+            if (nextMoves.length === 0) {
+                lookaheadScore -= 1000;
+            } else {
+                const bestNext = nextMoves.reduce(
+                    (maxScore, nextMove) => Math.max(maxScore, nextMove.score),
+                    -Infinity
+                );
+                lookaheadScore = move.score * 0.55 + bestNext * 1.0 + move.cleared * 2.5;
             }
+        }
+
+        if (!best || lookaheadScore > best.score) {
+            best = {
+                score: lookaheadScore,
+                x: move.x,
+                y: move.y,
+                matrix: move.matrix
+            };
         }
     }
 
@@ -341,7 +383,7 @@ function findBestMove(board, matrix) {
 }
 
 function aiStep() {
-    const bestMove = findBestMove(arena, player.matrix);
+    const bestMove = findBestMove(arena, player.matrix, nextMatrix);
     if (!bestMove) {
         playerDrop();
         return;
