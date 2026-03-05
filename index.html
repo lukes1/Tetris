@@ -10,8 +10,23 @@
     <main class="game-shell">
         <header class="game-header">
             <h1>Tetris</h1>
-            <p>Klassischer Arcade-Look, moderne Oberflaeche.</p>
+            <p>Stabiler Arcade-Mode</p>
         </header>
+
+        <section class="hud">
+            <article class="stat">
+                <span class="stat-label">Score</span>
+                <strong id="score">0</strong>
+            </article>
+            <article class="stat">
+                <span class="stat-label">Lines</span>
+                <strong id="lines">0</strong>
+            </article>
+            <article class="stat">
+                <span class="stat-label">Level</span>
+                <strong id="level">1</strong>
+            </article>
+        </section>
 
         <section class="game-stage">
             <canvas id="game"></canvas>

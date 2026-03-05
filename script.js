@@ -1,6 +1,9 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const aiStatus = document.getElementById("ai-status");
+const scoreElement = document.getElementById("score");
+const linesElement = document.getElementById("lines");
+const levelElement = document.getElementById("level");
 
 const COLS = 10;
 const ROWS = 20;
@@ -92,8 +95,12 @@ let autoPlay = AUTO_PLAY_DEFAULT;
 let lastTime = 0;
 let dropCounter = 0;
 let aiCounter = 0;
+let score = 0;
+let lines = 0;
+let level = 1;
 
-const dropInterval = 500;
+const baseDropInterval = 500;
+let dropInterval = baseDropInterval;
 const aiInterval = 90;
 
 function collide(board, currentPlayer) {
@@ -160,9 +167,7 @@ function playerDrop() {
     player.pos.y++;
     if (collide(arena, player)) {
         player.pos.y--;
-        merge(arena, player);
-        arenaSweep();
-        resetPlayer();
+        lockPiece();
     }
 }
 
@@ -171,9 +176,7 @@ function hardDrop() {
         player.pos.y++;
     }
     player.pos.y--;
-    merge(arena, player);
-    arenaSweep();
-    resetPlayer();
+    lockPiece();
 }
 
 function sweepBoard(board) {
@@ -198,6 +201,52 @@ function arenaSweep() {
     return sweepBoard(arena);
 }
 
+function levelFromLines(totalLines) {
+    return Math.floor(totalLines / 10) + 1;
+}
+
+function dropIntervalForLevel(currentLevel) {
+    return Math.max(90, baseDropInterval - (currentLevel - 1) * 35);
+}
+
+function scoreForClearedLines(clearedLines, currentLevel) {
+    const table = [0, 40, 100, 300, 1200];
+    return table[clearedLines] * currentLevel;
+}
+
+function updateScoreDisplay() {
+    scoreElement.textContent = String(score);
+    linesElement.textContent = String(lines);
+    levelElement.textContent = String(level);
+}
+
+function resetStats() {
+    score = 0;
+    lines = 0;
+    level = 1;
+    dropInterval = dropIntervalForLevel(level);
+    updateScoreDisplay();
+}
+
+function applyLineScore(clearedLines) {
+    if (clearedLines <= 0) {
+        return;
+    }
+
+    score += scoreForClearedLines(clearedLines, level);
+    lines += clearedLines;
+    level = levelFromLines(lines);
+    dropInterval = dropIntervalForLevel(level);
+    updateScoreDisplay();
+}
+
+function lockPiece() {
+    merge(arena, player);
+    const clearedLines = arenaSweep();
+    applyLineScore(clearedLines);
+    resetPlayer();
+}
+
 function resetPlayer() {
     player.matrix = cloneMatrix(
         SHAPES[Math.floor(Math.random() * (SHAPES.length - 1)) + 1]
@@ -207,6 +256,7 @@ function resetPlayer() {
 
     if (collide(arena, player)) {
         arena.forEach(row => row.fill(0));
+        resetStats();
     }
 }
 
@@ -300,9 +350,7 @@ function aiStep() {
     player.matrix = bestMove.matrix;
     player.pos.x = bestMove.x;
     player.pos.y = bestMove.y;
-    merge(arena, player);
-    arenaSweep();
-    resetPlayer();
+    lockPiece();
 }
 
 function drawCell(x, y, color) {
@@ -399,5 +447,6 @@ document.addEventListener("keydown", event => {
 });
 
 resetPlayer();
+resetStats();
 updateAIStatus();
 update();
