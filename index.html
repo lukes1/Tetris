@@ -10,7 +10,7 @@
     <main class="game-shell">
         <header class="game-header">
             <h1>Tetris</h1>
-            <p>Stabiler Arcade-Mode</p>
+            <p>Arcade-Mode mit Preview und Highscore</p>
         </header>
 
         <section class="hud">
@@ -26,13 +26,39 @@
                 <span class="stat-label">Level</span>
                 <strong id="level">1</strong>
             </article>
+            <article class="stat">
+                <span class="stat-label">Highscore</span>
+                <strong id="highscore">0</strong>
+            </article>
         </section>
 
         <section class="game-stage">
-            <canvas id="game"></canvas>
+            <div class="board-wrap">
+                <canvas id="game"></canvas>
+                <div class="stage-overlay" id="stage-overlay">
+                    <p class="overlay-kicker" id="overlay-kicker">Bereit?</p>
+                    <h2 id="overlay-title">Tetris starten</h2>
+                    <p id="overlay-text">Druecke Enter, um das Spiel zu beginnen.</p>
+                </div>
+            </div>
+
+            <aside class="side-panel">
+                <section class="panel-card">
+                    <span class="panel-label">Next Piece</span>
+                    <canvas id="next-piece" width="120" height="120"></canvas>
+                </section>
+
+                <section class="panel-card panel-status">
+                    <span class="panel-label">Status</span>
+                    <strong id="status-text">Waiting</strong>
+                    <button type="button" id="primary-action">Start</button>
+                </section>
+            </aside>
         </section>
 
         <footer class="controls">
+            <span>Start: Enter</span>
+            <span>Pause: P</span>
             <span>Bewegen: &larr; &rarr;</span>
             <span>Fallen: &darr;</span>
             <span>Drehen: &uarr;</span>

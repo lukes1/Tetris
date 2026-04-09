@@ -1,14 +1,31 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const nextCanvas = document.getElementById("next-piece");
+const nextCtx = nextCanvas.getContext("2d");
 const aiStatus = document.getElementById("ai-status");
 const scoreElement = document.getElementById("score");
 const linesElement = document.getElementById("lines");
 const levelElement = document.getElementById("level");
+const highscoreElement = document.getElementById("highscore");
+const statusText = document.getElementById("status-text");
+const primaryActionButton = document.getElementById("primary-action");
+const stageOverlay = document.getElementById("stage-overlay");
+const overlayKicker = document.getElementById("overlay-kicker");
+const overlayTitle = document.getElementById("overlay-title");
+const overlayText = document.getElementById("overlay-text");
 
 const COLS = 10;
 const ROWS = 20;
 const BLOCK = 20;
 const AUTO_PLAY_DEFAULT = true;
+const PREVIEW_BLOCK = 24;
+const HIGHSCORE_STORAGE_KEY = "tetris-highscore";
+const GAME_STATES = {
+    READY: "ready",
+    RUNNING: "running",
+    PAUSED: "paused",
+    GAME_OVER: "gameover"
+};
 
 canvas.width = COLS * BLOCK;
 canvas.height = ROWS * BLOCK;
@@ -103,10 +120,23 @@ let aiCounter = 0;
 let score = 0;
 let lines = 0;
 let level = 1;
+let combo = -1;
+let highscore = loadHighscore();
+let gameState = GAME_STATES.READY;
 
 const baseDropInterval = 500;
 let dropInterval = baseDropInterval;
 const aiInterval = 90;
+
+function loadHighscore() {
+    const stored = window.localStorage.getItem(HIGHSCORE_STORAGE_KEY);
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function persistHighscore() {
+    window.localStorage.setItem(HIGHSCORE_STORAGE_KEY, String(highscore));
+}
 
 function collide(board, currentPlayer) {
     return collideAt(board, currentPlayer.matrix, currentPlayer.pos.x, currentPlayer.pos.y);
@@ -219,29 +249,50 @@ function scoreForClearedLines(clearedLines, currentLevel) {
     return table[clearedLines] * currentLevel;
 }
 
+function updateHighscore() {
+    if (score > highscore) {
+        highscore = score;
+        persistHighscore();
+    }
+}
+
 function updateScoreDisplay() {
     scoreElement.textContent = String(score);
     linesElement.textContent = String(lines);
     levelElement.textContent = String(level);
+    highscoreElement.textContent = String(highscore);
 }
 
 function resetStats() {
     score = 0;
     lines = 0;
     level = 1;
+    combo = -1;
     dropInterval = dropIntervalForLevel(level);
     updateScoreDisplay();
 }
 
+function addDropScore(points) {
+    score += points;
+    updateHighscore();
+    updateScoreDisplay();
+}
+
 function applyLineScore(clearedLines) {
-    if (clearedLines <= 0) {
-        return;
+    if (clearedLines > 0) {
+        combo = combo < 0 ? 0 : combo + 1;
+        score += scoreForClearedLines(clearedLines, level);
+        if (combo > 0) {
+            score += combo * 50 * level;
+        }
+        lines += clearedLines;
+        level = levelFromLines(lines);
+        dropInterval = dropIntervalForLevel(level);
+        updateHighscore();
+    } else {
+        combo = -1;
     }
 
-    score += scoreForClearedLines(clearedLines, level);
-    lines += clearedLines;
-    level = levelFromLines(lines);
-    dropInterval = dropIntervalForLevel(level);
     updateScoreDisplay();
 }
 
@@ -252,19 +303,23 @@ function lockPiece() {
     resetPlayer();
 }
 
+function spawnPlayerFromQueue() {
+    player.matrix = nextMatrix;
+    nextMatrix = randomShapeMatrix();
+    player.pos.y = 0;
+    player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+}
+
 function resetPlayer() {
     if (!nextMatrix) {
         nextMatrix = randomShapeMatrix();
     }
 
-    player.matrix = nextMatrix;
-    nextMatrix = randomShapeMatrix();
-    player.pos.y = 0;
-    player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+    spawnPlayerFromQueue();
+    drawNextPreview();
 
     if (collide(arena, player)) {
-        arena.forEach(row => row.fill(0));
-        resetStats();
+        handleGameOver();
     }
 }
 
@@ -396,10 +451,131 @@ function aiStep() {
 }
 
 function drawCell(x, y, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK, BLOCK);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-    ctx.strokeRect(x * BLOCK + 0.5, y * BLOCK + 0.5, BLOCK - 1, BLOCK - 1);
+    drawCellOnContext(ctx, x, y, color, BLOCK);
+}
+
+function drawCellOnContext(context, x, y, color, size) {
+    context.fillStyle = color;
+    context.fillRect(x * size, y * size, size, size);
+    context.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    context.strokeRect(x * size + 0.5, y * size + 0.5, size - 1, size - 1);
+}
+
+function drawPreview() {
+    nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+    nextCtx.fillStyle = "#05070d";
+    nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+
+    if (!nextMatrix) {
+        return;
+    }
+
+    const matrixWidth = nextMatrix[0].length;
+    const matrixHeight = nextMatrix.length;
+    const offsetX = Math.floor((nextCanvas.width - matrixWidth * PREVIEW_BLOCK) / 2 / PREVIEW_BLOCK);
+    const offsetY = Math.floor((nextCanvas.height - matrixHeight * PREVIEW_BLOCK) / 2 / PREVIEW_BLOCK);
+
+    nextMatrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                drawCellOnContext(nextCtx, x + offsetX, y + offsetY, COLORS[value], PREVIEW_BLOCK);
+            }
+        });
+    });
+}
+
+function drawNextPreview() {
+    drawPreview();
+}
+
+function drawOverlay() {
+    if (gameState === GAME_STATES.RUNNING) {
+        stageOverlay.hidden = true;
+        return;
+    }
+
+    stageOverlay.hidden = false;
+
+    if (gameState === GAME_STATES.READY) {
+        overlayKicker.textContent = "Bereit?";
+        overlayTitle.textContent = "Tetris starten";
+        overlayText.textContent = "Druecke Enter oder den Start-Button.";
+    } else if (gameState === GAME_STATES.PAUSED) {
+        overlayKicker.textContent = "Pause";
+        overlayTitle.textContent = "Spiel pausiert";
+        overlayText.textContent = "Druecke P oder den Button, um weiterzuspielen.";
+    } else {
+        overlayKicker.textContent = "Game Over";
+        overlayTitle.textContent = "Neuer Versuch?";
+        overlayText.textContent = `Dein Run endet mit ${score} Punkten. Enter startet neu.`;
+    }
+}
+
+function updateStatusUI() {
+    const labels = {
+        [GAME_STATES.READY]: { text: "Waiting", button: "Start" },
+        [GAME_STATES.RUNNING]: { text: "Running", button: "Pause" },
+        [GAME_STATES.PAUSED]: { text: "Paused", button: "Resume" },
+        [GAME_STATES.GAME_OVER]: { text: "Game Over", button: "Restart" }
+    };
+    statusText.textContent = labels[gameState].text;
+    primaryActionButton.textContent = labels[gameState].button;
+}
+
+function setGameState(nextState) {
+    gameState = nextState;
+    if (nextState !== GAME_STATES.RUNNING) {
+        dropCounter = 0;
+        aiCounter = 0;
+    }
+    updateStatusUI();
+    drawOverlay();
+}
+
+function resetArena() {
+    arena.forEach(row => row.fill(0));
+}
+
+function startNewGame() {
+    resetArena();
+    nextMatrix = randomShapeMatrix();
+    resetStats();
+    spawnPlayerFromQueue();
+    drawNextPreview();
+    lastTime = 0;
+    setGameState(GAME_STATES.RUNNING);
+}
+
+function togglePause() {
+    if (gameState === GAME_STATES.RUNNING) {
+        setGameState(GAME_STATES.PAUSED);
+    } else if (gameState === GAME_STATES.PAUSED) {
+        setGameState(GAME_STATES.RUNNING);
+    }
+}
+
+function handleGameOver() {
+    updateHighscore();
+    updateScoreDisplay();
+    setGameState(GAME_STATES.GAME_OVER);
+}
+
+function handlePrimaryAction() {
+    if (gameState === GAME_STATES.READY || gameState === GAME_STATES.GAME_OVER) {
+        startNewGame();
+    } else {
+        togglePause();
+    }
+}
+
+function draw() {
+    ctx.fillStyle = "#05070d";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawMatrix(arena, { x: 0, y: 0 });
+    if (player.matrix) {
+        drawMatrix(player.matrix, player.pos);
+    }
 }
 
 function drawMatrix(matrix, offset) {
@@ -412,14 +588,6 @@ function drawMatrix(matrix, offset) {
     });
 }
 
-function draw() {
-    ctx.fillStyle = "#05070d";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    drawMatrix(arena, { x: 0, y: 0 });
-    drawMatrix(player.matrix, player.pos);
-}
-
 function updateAIStatus() {
     if (aiStatus) {
         aiStatus.textContent = `AI: ${autoPlay ? "ON" : "OFF"}`;
@@ -430,13 +598,13 @@ function update(time = 0) {
     const deltaTime = time - lastTime;
     lastTime = time;
 
-    if (autoPlay) {
+    if (gameState === GAME_STATES.RUNNING && autoPlay) {
         aiCounter += deltaTime;
         if (aiCounter > aiInterval) {
             aiCounter = 0;
             aiStep();
         }
-    } else {
+    } else if (gameState === GAME_STATES.RUNNING) {
         dropCounter += deltaTime;
         if (dropCounter > dropInterval) {
             playerDrop();
@@ -449,6 +617,18 @@ function update(time = 0) {
 }
 
 document.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+        handlePrimaryAction();
+        return;
+    }
+
+    if (event.key.toLowerCase() === "p") {
+        if (gameState !== GAME_STATES.READY) {
+            togglePause();
+        }
+        return;
+    }
+
     if (event.key.toLowerCase() === "a") {
         autoPlay = !autoPlay;
         dropCounter = 0;
@@ -457,7 +637,7 @@ document.addEventListener("keydown", event => {
         return;
     }
 
-    if (autoPlay) {
+    if (gameState !== GAME_STATES.RUNNING || autoPlay) {
         return;
     }
 
@@ -476,6 +656,7 @@ document.addEventListener("keydown", event => {
     }
 
     if (event.key === "ArrowDown") {
+        addDropScore(1);
         playerDrop();
     }
 
@@ -484,11 +665,27 @@ document.addEventListener("keydown", event => {
     }
 
     if (event.code === "Space") {
+        let dropDistance = 0;
+        while (!collide(arena, player)) {
+            player.pos.y++;
+            dropDistance++;
+        }
+        player.pos.y--;
+        dropDistance--;
+        if (dropDistance > 0) {
+            addDropScore(dropDistance * 2);
+        }
         hardDrop();
     }
 });
 
-resetPlayer();
-resetStats();
+primaryActionButton.addEventListener("click", handlePrimaryAction);
+
+player.matrix = randomShapeMatrix();
+nextMatrix = randomShapeMatrix();
+updateScoreDisplay();
+drawNextPreview();
 updateAIStatus();
+updateStatusUI();
+drawOverlay();
 update();
